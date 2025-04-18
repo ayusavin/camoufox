@@ -29,43 +29,54 @@ from .exceptions import (
     UnsupportedVersion,
 )
 
-DownloadBuffer: TypeAlias = Union[BytesIO, tempfile._TemporaryFileWrapper, BufferedWriter]
+DownloadBuffer: TypeAlias = Union[
+    BytesIO, tempfile._TemporaryFileWrapper, BufferedWriter
+]
 
 # Map machine architecture to Camoufox binary name
 ARCH_MAP: Dict[str, str] = {
-    'amd64': 'x86_64',
-    'x86_64': 'x86_64',
-    'x86': 'x86_64',
-    'i686': 'i686',
-    'i386': 'i686',
-    'arm64': 'arm64',
-    'aarch64': 'arm64',
-    'armv5l': 'arm64',
-    'armv6l': 'arm64',
-    'armv7l': 'arm64',
+    "amd64": "x86_64",
+    "x86_64": "x86_64",
+    "x86": "x86_64",
+    "i686": "i686",
+    "i386": "i686",
+    "arm64": "arm64",
+    "aarch64": "arm64",
+    "armv5l": "arm64",
+    "armv6l": "arm64",
+    "armv7l": "arm64",
 }
-OS_MAP: Dict[str, Literal['mac', 'win', 'lin']] = {'darwin': 'mac', 'linux': 'lin', 'win32': 'win'}
+OS_MAP: Dict[str, Literal["mac", "win", "lin"]] = {
+    "darwin": "mac",
+    "linux": "lin",
+    "win32": "win",
+}
 
 if sys.platform not in OS_MAP:
     raise UnsupportedOS(f"OS {sys.platform} is not supported")
 
-OS_NAME: Literal['mac', 'win', 'lin'] = OS_MAP[sys.platform]
+OS_NAME: Literal["mac", "win", "lin"] = OS_MAP[sys.platform]
 
-INSTALL_DIR: Path = Path(user_cache_dir("camoufox"))
+INSTALL_DIR: Path = Path(
+    os.getenv(
+        "BROWSER_CACHE_DIR",
+        user_cache_dir("camoufox"),
+    )
+)
 LOCAL_DATA: Path = Path(os.path.abspath(__file__)).parent
 
 # The supported architectures for each OS
 OS_ARCH_MATRIX: Dict[str, List[str]] = {
-    'win': ['x86_64', 'i686'],
-    'mac': ['x86_64', 'arm64'],
-    'lin': ['x86_64', 'arm64', 'i686'],
+    "win": ["x86_64", "i686"],
+    "mac": ["x86_64", "arm64"],
+    "lin": ["x86_64", "arm64", "i686"],
 }
 
 # The relative path to the camoufox executable
 LAUNCH_FILE = {
-    'win': 'camoufox.exe',
-    'mac': '../MacOS/camoufox',
-    'lin': 'camoufox-bin',
+    "win": "camoufox.exe",
+    "mac": "../MacOS/camoufox",
+    "lin": "camoufox-bin",
 }
 
 
@@ -88,8 +99,11 @@ class Version:
         # Build an internal sortable structure
         self.sorted_rel = tuple(
             [
-                *(int(x) if x.isdigit() else ord(x[0]) - 1024 for x in self.release.split('.')),
-                *(0 for _ in range(5 - self.release.count('.'))),
+                *(
+                    int(x) if x.isdigit() else ord(x[0]) - 1024
+                    for x in self.release.split(".")
+                ),
+                *(0 for _ in range(5 - self.release.count("."))),
             ]
         )
 
@@ -107,17 +121,17 @@ class Version:
         return VERSION_MIN <= self < VERSION_MAX
 
     @staticmethod
-    def from_path(path: Optional[Path] = None) -> 'Version':
+    def from_path(path: Optional[Path] = None) -> "Version":
         """
         Get the version from the given path.
         """
-        version_path = (path or INSTALL_DIR) / 'version.json'
+        version_path = (path or INSTALL_DIR) / "version.json"
         if not os.path.exists(version_path):
             raise FileNotFoundError(
                 f"Version information not found at {version_path}. "
                 "Please run `camoufox fetch` to install."
             )
-        with open(version_path, 'rb') as f:
+        with open(version_path, "rb") as f:
             version_data = orjson.loads(f.read())
             return Version(**version_data)
 
@@ -129,8 +143,10 @@ class Version:
         return Version.from_path(path) >= VERSION_MIN
 
     @staticmethod
-    def build_minmax() -> Tuple['Version', 'Version']:
-        return Version(release=CONSTRAINTS.MIN_VERSION), Version(release=CONSTRAINTS.MAX_VERSION)
+    def build_minmax() -> Tuple["Version", "Version"]:
+        return Version(release=CONSTRAINTS.MIN_VERSION), Version(
+            release=CONSTRAINTS.MAX_VERSION
+        )
 
 
 # The minimum and maximum supported versions
@@ -156,7 +172,7 @@ class GitHubDownloader:
         Returns:
             Any: Data to be returned if this is the desired asset, or None/False if not
         """
-        return asset.get('browser_download_url')
+        return asset.get("browser_download_url")
 
     def missing_asset_error(self) -> None:
         """
@@ -175,7 +191,7 @@ class GitHubDownloader:
         releases = resp.json()
 
         for release in releases:
-            for asset in release['assets']:
+            for asset in release["assets"]:
                 if data := self.check_asset(asset):
                     return data
 
@@ -193,7 +209,7 @@ class CamoufoxFetcher(GitHubDownloader):
         self.arch = self.get_platform_arch()
         self._version_obj: Optional[Version] = None
         self.pattern: re.Pattern = re.compile(
-            rf'camoufox-(?P<version>.+)-(?P<release>.+)-{OS_NAME}\.{self.arch}\.zip'
+            rf"camoufox-(?P<version>.+)-(?P<release>.+)-{OS_NAME}\.{self.arch}\.zip"
         )
 
         self.fetch_latest()
@@ -207,17 +223,17 @@ class CamoufoxFetcher(GitHubDownloader):
             Optional[Tuple[Version, str]]: The version and URL of a release
         """
         # Search through releases for the first supported version
-        match = self.pattern.match(asset['name'])
+        match = self.pattern.match(asset["name"])
         if not match:
             return None
 
         # Check if the version is supported
-        version = Version(release=match['release'], version=match['version'])
+        version = Version(release=match["release"], version=match["version"])
         if not version.is_supported():
             return None
 
         # Asset was found. Return data
-        return version, asset['browser_download_url']
+        return version, asset["browser_download_url"]
 
     def missing_asset_error(self) -> None:
         """
@@ -250,7 +266,9 @@ class CamoufoxFetcher(GitHubDownloader):
 
         # Check if the architecture is supported for the OS
         if arch not in OS_ARCH_MATRIX[OS_NAME]:
-            raise UnsupportedArchitecture(f"Architecture {arch} is not supported for {OS_NAME}")
+            raise UnsupportedArchitecture(
+                f"Architecture {arch} is not supported for {OS_NAME}"
+            )
 
         return arch
 
@@ -280,7 +298,7 @@ class CamoufoxFetcher(GitHubDownloader):
         Returns:
             DownloadBuffer: The downloaded file content as a BytesIO object
         """
-        rprint(f'Downloading package: {url}')
+        rprint(f"Downloading package: {url}")
         return webdl(url, buffer=file)
 
     def extract_zip(self, zip_file: DownloadBuffer) -> None:
@@ -290,7 +308,7 @@ class CamoufoxFetcher(GitHubDownloader):
         Args:
             zip_file (DownloadBuffer): The zip file content as a BytesIO object
         """
-        rprint(f'Extracting Camoufox: {INSTALL_DIR}')
+        rprint(f"Extracting Camoufox: {INSTALL_DIR}")
         unzip(zip_file, str(INSTALL_DIR))
 
     @staticmethod
@@ -299,7 +317,7 @@ class CamoufoxFetcher(GitHubDownloader):
         Clean up the old installation.
         """
         if INSTALL_DIR.exists():
-            rprint(f'Cleaning up cache: {INSTALL_DIR}')
+            rprint(f"Cleaning up cache: {INSTALL_DIR}")
             shutil.rmtree(INSTALL_DIR)
             return True
         return False
@@ -308,8 +326,8 @@ class CamoufoxFetcher(GitHubDownloader):
         """
         Set the version in the INSTALL_DIR/version.json file
         """
-        with open(INSTALL_DIR / 'version.json', 'wb') as f:
-            f.write(orjson.dumps({'version': self.version, 'release': self.release}))
+        with open(INSTALL_DIR / "version.json", "wb") as f:
+            f.write(orjson.dumps({"version": self.version, "release": self.release}))
 
     def install(self) -> None:
         """
@@ -331,10 +349,10 @@ class CamoufoxFetcher(GitHubDownloader):
                 self.set_version()
 
             # Set permissions on INSTALL_DIR
-            if OS_NAME != 'win':
-                os.system(f'chmod -R 755 {shlex.quote(str(INSTALL_DIR))}')  # nosec
+            if OS_NAME != "win":
+                os.system(f"chmod -R 755 {shlex.quote(str(INSTALL_DIR))}")  # nosec
 
-            rprint('\nCamoufox successfully installed.', fg="yellow")
+            rprint("\nCamoufox successfully installed.", fg="yellow")
         except Exception as e:
             rprint(f"Error installing Camoufox: {str(e)}")
             self.cleanup()
@@ -352,7 +370,9 @@ class CamoufoxFetcher(GitHubDownloader):
             ValueError: If the version is not available (fetch_latest not ran)
         """
         if self._url is None:
-            raise ValueError("Url is not available. Make sure to run fetch_latest first.")
+            raise ValueError(
+                "Url is not available. Make sure to run fetch_latest first."
+            )
         return self._url
 
     @property
@@ -367,7 +387,9 @@ class CamoufoxFetcher(GitHubDownloader):
             ValueError: If the version is not available (fetch_latest not ran)
         """
         if self._version_obj is None or not self._version_obj.version:
-            raise ValueError("Version is not available. Make sure to run the fetch_latest first.")
+            raise ValueError(
+                "Version is not available. Make sure to run the fetch_latest first."
+            )
 
         return self._version_obj.version
 
@@ -398,7 +420,9 @@ class CamoufoxFetcher(GitHubDownloader):
             str: The version of the installed camoufox
         """
         if self._version_obj is None:
-            raise ValueError("Version is not available. Make sure to run the installation first.")
+            raise ValueError(
+                "Version is not available. Make sure to run the installation first."
+            )
         return self._version_obj.full_string
 
 
@@ -437,8 +461,10 @@ def get_path(file: str) -> str:
     """
     Get the path to the camoufox executable.
     """
-    if OS_NAME == 'mac':
-        return os.path.abspath(camoufox_path() / 'Camoufox.app' / 'Contents' / 'Resources' / file)
+    if OS_NAME == "mac":
+        return os.path.abspath(
+            camoufox_path() / "Camoufox.app" / "Contents" / "Resources" / file
+        )
     return str(camoufox_path() / file)
 
 
@@ -478,15 +504,15 @@ def webdl(
     response = requests.get(url, stream=True)
     response.raise_for_status()
 
-    total_size = int(response.headers.get('content-length', 0))
+    total_size = int(response.headers.get("content-length", 0))
     block_size = 8192
     if buffer is None:
         buffer = BytesIO()
 
     with tqdm(
         total=total_size,
-        unit='iB',
-        bar_format=None if bar else '{desc}: {percentage:3.0f}%',
+        unit="iB",
+        bar_format=None if bar else "{desc}: {percentage:3.0f}%",
         unit_scale=True,
         desc=desc,
     ) as progress_bar:
@@ -516,7 +542,9 @@ def unzip(
     """
     with ZipFile(zip_file) as zf:
         for member in tqdm(
-            zf.infolist(), desc=desc, bar_format=None if bar else '{desc}: {percentage:3.0f}%'
+            zf.infolist(),
+            desc=desc,
+            bar_format=None if bar else "{desc}: {percentage:3.0f}%",
         ):
             zf.extract(member, extract_path)
 
@@ -525,5 +553,5 @@ def load_yaml(file: str) -> Dict[str, Any]:
     """
     Loads a local YAML file and returns it as a dictionary.
     """
-    with open(LOCAL_DATA / file, 'r') as f:
+    with open(LOCAL_DATA / file, "r") as f:
         return load(f, Loader=CLoader)
